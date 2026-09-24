@@ -4,7 +4,7 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import LinearProgress from "@mui/material/LinearProgress";
-import Stack from "@mui/material/Stack";
+import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import StarIcon from "@mui/icons-material/Star";
 import LocalFireDepartmentIcon from "@mui/icons-material/LocalFireDepartment";
@@ -38,7 +38,7 @@ export default function StatsBar() {
   return (
     <Card sx={{ bgcolor: "primary.main", color: "primary.contrastText" }}>
       <CardContent>
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+        <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
           <Chip icon={<StarIcon />} label={`Lv ${stats.level} · ${stats.name}`} color="secondary" size="small" />
           <Typography variant="body2" sx={{ fontWeight: 700 }}>
             {stats.xp} XP
@@ -49,7 +49,7 @@ export default function StatsBar() {
             size="small"
             sx={{ bgcolor: "rgba(255,255,255,0.2)", color: "inherit" }}
           />
-        </Stack>
+        </Box>
         <LinearProgress
           variant="determinate"
           value={pct}

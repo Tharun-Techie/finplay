@@ -1,5 +1,14 @@
 import { createTheme } from "@mui/material/styles";
 
+declare module "@mui/material/styles" {
+  interface Palette {
+    tertiary: Palette["primary"];
+  }
+  interface PaletteOptions {
+    tertiary?: PaletteOptions["primary"];
+  }
+}
+
 // FinQuest Material theme — M3 expressive, finance-green seed.
 const theme = createTheme({
   palette: {

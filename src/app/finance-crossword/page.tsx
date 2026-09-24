@@ -228,12 +228,12 @@ export default function CrosswordPage() {
 
   if (!data) {
     return (
-      <Stack spacing={2} alignItems="center" sx={{ py: 8 }} aria-live="polite">
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "center", py: 8 }} aria-live="polite">
         <CircularProgress aria-label="Loading crossword" />
         <Typography variant="body2" color="text.secondary">
           Loading crossword…
         </Typography>
-      </Stack>
+      </Box>
     );
   }
 
@@ -388,7 +388,7 @@ export default function CrosswordPage() {
                       >
                         <ListItemText
                           primary={`${e.number}. ${e.clue} (${e.len})`}
-                          primaryTypographyProps={{ variant: "body2" }}
+                          slotProps={{ primary: { variant: "body2" } }}
                         />
                         {filled && <Chip label="filled" size="small" variant="outlined" />}
                       </ListItemButton>
@@ -401,13 +401,13 @@ export default function CrosswordPage() {
         </Box>
       </Box>
 
-      <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+      <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
         <Button variant="contained" onClick={submit}>
           Check crossword
         </Button>
         <Button onClick={clearEntry}>Clear this clue</Button>
         <Button onClick={() => setCells({})}>Clear all</Button>
-      </Stack>
+      </Box>
       {res && (
         <Alert severity={res.startsWith("🎉") ? "success" : "info"} aria-live="polite">
           {res}

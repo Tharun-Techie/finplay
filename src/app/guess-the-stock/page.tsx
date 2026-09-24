@@ -135,8 +135,10 @@ export default function GuessTheStockPage() {
             <ListItemText
               primary={`Clue ${c.order} · ${c.kind}`}
               secondary={c.text}
-              primaryTypographyProps={{ variant: "overline", color: "primary" }}
-              secondaryTypographyProps={{ variant: "body1", color: "text.primary" }}
+              slotProps={{
+                primary: { variant: "overline", color: "primary" },
+                secondary: { variant: "body1", color: "text.primary" },
+              }}
             />
           </ListItem>
         ))}

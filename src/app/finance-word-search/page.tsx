@@ -85,7 +85,7 @@ export default function WordSearchPage() {
 
       {loadError && <Alert severity="error">Couldn&apos;t load today&apos;s grid: {loadError}</Alert>}
 
-      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap aria-live="polite">
+      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }} aria-live="polite">
         {words.map((w) => (
           <Chip
             key={w}
@@ -99,7 +99,7 @@ export default function WordSearchPage() {
             sx={{ fontFamily: "monospace", fontWeight: 700 }}
           />
         ))}
-      </Stack>
+      </Box>
 
       {grid.length === 0 && !loadError ? (
         <Skeleton variant="rounded" height={320} sx={{ borderRadius: 5 }} />
@@ -133,12 +133,12 @@ export default function WordSearchPage() {
                 )),
               )}
             </Box>
-            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 2 }}>
+            <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", mt: 2 }}>
               <Button variant="contained" onClick={submitSelection} disabled={!selWord}>
                 Check “{selWord || "…"}”
               </Button>
               <Button onClick={() => setSel([])}>Clear</Button>
-            </Stack>
+            </Box>
             {result && (
               <Alert severity={result.startsWith("🎉") ? "success" : "info"} sx={{ mt: 2 }} aria-live="polite">
                 {result}
