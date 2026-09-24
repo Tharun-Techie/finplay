@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FinQuest — Play your way through finance
 
-## Getting Started
+Modular-monolith MVP (Next.js + TypeScript + Prisma + Postgres).
 
-First, run the development server:
-
+## Quick start (no DB — seed fallback)
 ```bash
+npm install
+npm run dev        # http://localhost:3000
+```
+APIs work out of the box via deterministic seed data (`src/data/*`).
+
+## With Postgres + Redis
+```bash
+cp .env.example .env
+docker compose up -d
+npm run db:push
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Structure
+- `prisma/schema.prisma` — User, Company, CompanyMetric (value/currency/period/asOf/source), Puzzle envelope + per-game tables, GameSession (signed), Score (flagged), XP, Streak, Achievements (configurable rules)
+- `src/lib/games/registry.ts` — add a game = GameDefinition + engine + scoring + content + UI
+- `src/lib/games/word-search.ts` — deterministic seeded generator (§18)
+- `src/lib/games/crossword.ts` — greedy intersection placer + validator (§19)
+- `src/lib/games/guess-stock.ts` — tolerant answer check
+- `src/lib/scoring.ts` — configurable XP tables + levels; `isPlausibleScore` anti-cheat
+- `src/lib/streak.ts` — server-side streak calc
+- `src/lib/session.ts` — HMAC-signed sessions (§21)
+- `src/lib/market-data/provider.ts` — pluggable NSE/BSE/ProviderX abstraction (§15)
+- `src/data/` — NSE seed companies, glossary, deterministic daily quests
+- `src/app/api/` — daily, guess-stock guess/complete, word-search/crossword complete, companies autocomplete, leaderboard, admin (x-admin-token), me/stats
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Key guarantees
+- Answers & scores validated server-side; clients never submit XP (§20).
+- Daily puzzles share one ID per date; grids pre-generated from seed (§8, §32).
+- Finance metrics always carry asOf/source; UI disclaims "not investment advice" (§36).
+- Future games render as Coming Soon without touching existing games (§46).
