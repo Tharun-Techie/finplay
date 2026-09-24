@@ -1,0 +1,300 @@
+// FinQuest — modular monolith schema.
+// Postgres in prod, `prisma db push` for MVP. See docker-compose.yml.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PuzzleStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum GameType {
+  GUESS_STOCK
+  WORD_SEARCH
+  CROSSWORD
+  // Future: QUIZ, CHART_HUNT, DETECTIVE, HIGHER_LOWER, VALUATION, EARNINGS...
+}
+
+enum PuzzleDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String?   @unique
+  passwordHash  String?
+  name          String?
+  image         String?
+  isAdmin       Boolean   @default(false)
+  hideFromBoard Boolean   @default(false)
+  country       String?   @default("IN")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  profile       UserProfile?
+  sessions      GameSession[]
+  attempts      PuzzleAttempt[]
+  xpTxns        XPTransaction[]
+  achievements  UserAchievement[]
+  streaks       Streak[]
+  scores        Score[]
+}
+
+model UserProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  xp        Int      @default(0)
+  level     Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id       String   @id @default(cuid())
+  slug     String   @unique
+  name     String
+  puzzles  Puzzle[]
+}
+
+model ContentSource {
+  id        String   @id @default(cuid())
+  name      String
+  url       String?
+  createdAt DateTime @default(now())
+}
+
+// ---- Finance data layer (§14). Dynamic metrics carry value+currency+period+asOf+source. Never treat as timeless. ----
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  ticker      String
+  exchange    String   @default("NSE") // NSE | BSE
+  sector      String?
+  industry    String?
+  description String?
+  products    String?
+  geography   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  metrics     CompanyMetric[]
+  puzzles     GuessStockPuzzle[]
+
+  @@unique([ticker, exchange])
+  @@index([sector])
+}
+
+model CompanyMetric {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  key       String   // PE, PB, ROE, ROCE, EPS, MARKET_CAP, REVENUE...
+  value     Float
+  currency  String?  @default("INR")
+  period    String?  // e.g. FY24, TTM, Q2FY26
+  asOf      DateTime
+  source    String
+  createdAt DateTime @default(now())
+
+  @@index([companyId, key])
+}
+
+// ---- Puzzle platform. Puzzle is the generic envelope; per-game tables hold specifics. ----
+model Puzzle {
+  id          String            @id @default(cuid())
+  gameType    GameType
+  dailyDate   DateTime?         // set for daily quests; same puzzle for all users that day (§8)
+  title       String
+  difficulty  PuzzleDifficulty  @default(MEDIUM)
+  xpReward    Int               @default(100)
+  estMinutes  Int               @default(5)
+  status      PuzzleStatus      @default(DRAFT)
+  categoryId  String?
+  category    Category?         @relation(fields: [categoryId], references: [id])
+  seed        String?           // deterministic regeneration (§18)
+  config      Json?             // per-game tunable config (attempts, grid size, scoring table...)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  guessStock  GuessStockPuzzle?
+  wordSearch  WordSearchPuzzle?
+  crossword   CrosswordPuzzle?
+  attempts    PuzzleAttempt[]
+  sessions    GameSession[]
+  scores      Score[]
+
+  @@index([gameType, status])
+  @@index([dailyDate])
+}
+
+model GuessStockPuzzle {
+  id        String  @id @default(cuid())
+  puzzleId  String  @unique
+  puzzle    Puzzle  @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  maxAttempts Int   @default(5)
+  clues     PuzzleClue[]
+}
+
+model WordSearchPuzzle {
+  id         String      @id @default(cuid())
+  puzzleId   String      @unique
+  puzzle     Puzzle      @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  rows       Int         @default(12)
+  cols       Int         @default(12)
+  grid       Json        // string[][]
+  theme      String?
+  words      PuzzleWord[]
+}
+
+model CrosswordPuzzle {
+  id        String       @id @default(cuid())
+  puzzleId  String       @unique
+  puzzle    Puzzle       @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  rows      Int          @default(11)
+  cols      Int          @default(11)
+  grid      Json         // (string|null)[][] solution grid
+  words     PuzzleWord[]
+}
+
+model PuzzleWord {
+  id               String             @id @default(cuid())
+  word             String
+  clue             String?
+  explanation      String?
+  learnMoreUrl     String?
+  row              Int?
+  col              Int?
+  direction        String?            // H, V, D, H_REV... / ACROSS, DOWN
+  wordSearchId     String?
+  wordSearch       WordSearchPuzzle?  @relation(fields: [wordSearchId], references: [id], onDelete: Cascade)
+  crosswordId      String?
+  crossword        CrosswordPuzzle?   @relation(fields: [crosswordId], references: [id], onDelete: Cascade)
+
+  @@index([wordSearchId])
+  @@index([crosswordId])
+}
+
+model PuzzleClue {
+  id               String           @id @default(cuid())
+  guessStockId     String
+  guessStock       GuessStockPuzzle @relation(fields: [guessStockId], references: [id], onDelete: Cascade)
+  order            Int
+  kind             String           // BUSINESS | INDUSTRY | PRODUCT | GEO | FINANCIAL | MARKET | ...
+  text             String
+  // Traceability (§44): dynamic clues carry source metadata
+  sourceValue      String?
+  source           String?
+  period           String?
+  asOf             DateTime?
+  generatedAt      DateTime         @default(now())
+
+  @@index([guessStockId, order])
+}
+
+// ---- Gameplay / anti-cheat (§20-21): never trust client score; server validates + signs sessions. ----
+model GameSession {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guestId    String?
+  puzzleId   String
+  puzzle     Puzzle   @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  attempts   Int      @default(0)
+  revealed   Int      @default(1) // clues revealed so far (guess-stock)
+  signature  String   // HMAC of session id + puzzle id; validated on submit
+  completed  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([puzzleId])
+}
+
+model PuzzleAttempt {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guestId   String?
+  puzzleId  String
+  puzzle    Puzzle   @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  guess     String?
+  correct   Boolean  @default(false)
+  score     Int      @default(0)
+  xp        Int      @default(0)
+  seconds   Int?
+  createdAt DateTime @default(now())
+
+  @@index([puzzleId, createdAt])
+  @@index([userId])
+}
+
+model Score {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guestId   String?
+  puzzleId  String
+  puzzle    Puzzle   @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  points    Int
+  flagged   Boolean  @default(false) // suspicious-score detection (§21)
+  createdAt DateTime @default(now())
+
+  @@index([puzzleId, points])
+  @@index([userId])
+}
+
+model XPTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Int
+  reason    String
+  puzzleId  String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String
+  icon        String?
+  rule        Json     // configurable rule, e.g. { type: "STREAK", days: 7 } (§12)
+  users       UserAchievement[]
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+}
+
+model Streak {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  current      Int      @default(0)
+  longest      Int      @default(0)
+  lastActiveAt DateTime?
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId])
+}
