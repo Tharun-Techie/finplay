@@ -1,4 +1,3 @@
-import NextLink from "next/link";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import CardActions from "@mui/material/CardActions";
@@ -61,7 +60,6 @@ export default function Home() {
             color="secondary"
             size="large"
             startIcon={<PlayArrowIcon />}
-            component={NextLink}
             href="/guess-the-stock"
           >
             Play Today&apos;s Quest
@@ -107,7 +105,7 @@ export default function Home() {
                   </Box>
                 </CardContent>
                 <CardActions>
-                  <Button size="small" endIcon={<PlayArrowIcon />} component={NextLink} href={`/${meta.slug}`}>
+                  <Button size="small" endIcon={<PlayArrowIcon />} href={`/${meta.slug}`}>
                     Play
                   </Button>
                 </CardActions>
@@ -130,7 +128,7 @@ export default function Home() {
           }}
         >
           {Object.values(GAMES).map((g) => (
-            <Card key={g.slug} component={NextLink} href={`/${g.slug}`} sx={{ textDecoration: "none" }}>
+            <Card key={g.slug} component="a" href={`/${g.slug}`} sx={{ textDecoration: "none", color: "inherit" }}>
               <CardContent>
                 <Avatar sx={{ bgcolor: "tertiary.main" }}>{g.icon}</Avatar>
                 <Typography variant="h6" component="h3" sx={{ mt: 1.5 }}>
