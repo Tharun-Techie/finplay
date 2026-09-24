@@ -1,5 +1,17 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Typography from "@mui/material/Typography";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Button from "@mui/material/Button";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
+import List from "@mui/material/List";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemText from "@mui/material/ListItemText";
 
 interface Entry {
   number: number;
@@ -97,11 +109,9 @@ export default function CrosswordPage() {
     const opts = entriesByCell.get(cellKey(r, c)) ?? [];
     if (opts.length === 0) return;
     const current = activeKey ? opts.find((e) => key(e.number, e.dir) === activeKey) : null;
-    // Tapping the same cell toggles ACROSS/DOWN when both exist (§30 touch support).
     let next: Entry;
     if (current && opts.length > 1 && activeCell?.[0] === r && activeCell?.[1] === c) {
-      const i = opts.indexOf(current);
-      next = opts[(i + 1) % opts.length];
+      next = opts[(opts.indexOf(current) + 1) % opts.length];
     } else if (current && opts.includes(current)) {
       next = current;
     } else {
@@ -113,37 +123,35 @@ export default function CrosswordPage() {
 
   function selectEntry(e: Entry) {
     setActiveKey(key(e.number, e.dir));
-    // Jump to first empty cell in the entry, else its start.
-    const cellsList = cellsForEntry(e);
-    const empty = cellsList.find(([r, c]) => !cells[cellKey(r, c)]);
+    const list = cellsForEntry(e);
+    const empty = list.find(([r, c]) => !cells[cellKey(r, c)]);
     focusCell(...(empty ?? [e.row, e.col]));
   }
 
   function typeAt(r: number, c: number, ch: string) {
     const v = ch.toUpperCase().replace(/[^A-Z]/g, "").slice(-1);
     setCells((prev) => ({ ...prev, [cellKey(r, c)]: v }));
-    if (v && activeEntry) {
+    if (v && activeEntry && data) {
       const list = cellsForEntry(activeEntry);
       const i = list.findIndex(([a, b]) => a === r && b === c);
       const nxt = list[i + 1];
-      if (nxt && data && !data.blocks[nxt[0]]?.[nxt[1]]) focusCell(nxt[0], nxt[1]);
+      if (nxt && !data.blocks[nxt[0]]?.[nxt[1]]) focusCell(nxt[0], nxt[1]);
     }
   }
 
   function handleKey(r: number, c: number, e: React.KeyboardEvent) {
     if (!data) return;
-    const move = (dr: number, dc: number) => {
+    const move = (dr: number, dc: number, wantDir?: "ACROSS" | "DOWN") => {
       let nr = r + dr;
       let nc = c + dc;
       while (nr >= 0 && nr < data.rows && nc >= 0 && nc < data.cols) {
         if (!data.blocks[nr][nc]) {
-          // Keep typing direction aligned with active entry when using arrows.
           focusCell(nr, nc);
-          // If arrow implies a direction change, switch active entry if possible.
-          const opts = entriesByCell.get(cellKey(nr, nc)) ?? [];
-          const wantDir = dc !== 0 ? "ACROSS" : "DOWN";
-          const match = opts.find((x) => x.dir === wantDir);
-          if (match && (dr !== 0 || dc !== 0)) setActiveKey(key(match.number, match.dir));
+          if (wantDir) {
+            const opts = entriesByCell.get(cellKey(nr, nc)) ?? [];
+            const match = opts.find((x) => x.dir === wantDir);
+            if (match) setActiveKey(key(match.number, match.dir));
+          }
           return;
         }
         nr += dr;
@@ -163,12 +171,11 @@ export default function CrosswordPage() {
         }
       }
       e.preventDefault();
-    } else if (e.key === "ArrowRight") { move(0, 1); e.preventDefault(); }
-    else if (e.key === "ArrowLeft") { move(0, -1); e.preventDefault(); }
-    else if (e.key === "ArrowDown") { move(1, 0); e.preventDefault(); }
-    else if (e.key === "ArrowUp") { move(-1, 0); e.preventDefault(); }
+    } else if (e.key === "ArrowRight") { move(0, 1, "ACROSS"); e.preventDefault(); }
+    else if (e.key === "ArrowLeft") { move(0, -1, "ACROSS"); e.preventDefault(); }
+    else if (e.key === "ArrowDown") { move(1, 0, "DOWN"); e.preventDefault(); }
+    else if (e.key === "ArrowUp") { move(-1, 0, "DOWN"); e.preventDefault(); }
     else if (e.key === "Tab") {
-      // Cycle through clues instead of leaving the grid.
       const list = data.entries;
       const i = list.findIndex((x) => key(x.number, x.dir) === activeKey);
       const nxt = list[(i + (e.shiftKey ? -1 : 1) + list.length) % list.length];
@@ -178,7 +185,7 @@ export default function CrosswordPage() {
   }
 
   async function submit() {
-    if (!data || !activeEntry) return;
+    if (!data) return;
     const answers: Record<string, string> = {};
     for (const e of data.entries) {
       answers[key(e.number, e.dir)] = cellsForEntry(e)
@@ -205,132 +212,207 @@ export default function CrosswordPage() {
 
   if (loadError) {
     return (
-      <div className="mx-auto max-w-2xl">
-        <h1 className="text-2xl font-extrabold">🧩 Finance Crossword</h1>
-        <p className="mt-4 rounded-lg border border-red-300 bg-red-50 p-4 text-sm" role="alert">
+      <Stack spacing={2} sx={{ maxWidth: 720, mx: "auto" }}>
+        <Typography variant="h4" component="h1">
+          🧩 Finance Crossword
+        </Typography>
+        <Alert severity="error" role="alert">
           Couldn&apos;t load today&apos;s crossword: {loadError}
-        </p>
-        <button
-          onClick={() => setRetryN((n) => n + 1)}
-          className="mt-3 rounded-full bg-emerald-600 px-5 py-2 font-semibold text-white"
-        >
+        </Alert>
+        <Button variant="contained" onClick={() => setRetryN((n) => n + 1)} sx={{ alignSelf: "flex-start" }}>
           Retry
-        </button>
-      </div>
+        </Button>
+      </Stack>
     );
   }
-  if (!data) return <p className="text-sm" aria-live="polite">Loading crossword…</p>;
+
+  if (!data) {
+    return (
+      <Stack spacing={2} alignItems="center" sx={{ py: 8 }} aria-live="polite">
+        <CircularProgress aria-label="Loading crossword" />
+        <Typography variant="body2" color="text.secondary">
+          Loading crossword…
+        </Typography>
+      </Stack>
+    );
+  }
 
   const across = data.entries.filter((e) => e.dir === "ACROSS");
   const down = data.entries.filter((e) => e.dir === "DOWN");
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="text-2xl font-extrabold">🧩 Finance Crossword</h1>
-      <p className="text-sm text-zinc-600">
-        Tap a square or clue to play. Type with touch, mobile, or desktop keyboard. Answers are validated server-side — solutions never ship to the browser.
-      </p>
+    <Stack spacing={2} sx={{ maxWidth: 960, mx: "auto" }}>
+      <div>
+        <Typography variant="h4" component="h1">
+          🧩 Finance Crossword
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Tap a square or clue to play. Touch, mobile &amp; desktop keyboards supported.
+          Solutions never leave the server.
+        </Typography>
+      </div>
 
       {activeEntry && (
-        <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold" aria-live="polite">
-          {activeEntry.number} {activeEntry.dir} — {activeEntry.clue} ({activeEntry.len})
-        </p>
+        <Alert severity="success" icon={false} aria-live="polite">
+          <strong>
+            {activeEntry.number} {activeEntry.dir}
+          </strong>{" "}
+          — {activeEntry.clue} ({activeEntry.len})
+        </Alert>
       )}
 
-      <div className="mt-4 grid gap-6 md:grid-cols-[auto_1fr]">
-        <div
-          role="grid"
-          aria-label="Crossword grid"
-          className="grid w-full max-w-[420px] gap-[2px] rounded-lg bg-zinc-300 p-[2px]"
-          style={{ gridTemplateColumns: `repeat(${data.cols}, minmax(0,1fr))` }}
-        >
-          {Array.from({ length: data.rows }, (_, r) =>
-            Array.from({ length: data.cols }, (_, c) => {
-              if (data.blocks[r][c]) {
-                return <div key={`${r}-${c}`} role="presentation" className="aspect-square bg-zinc-900/90" />;
-              }
-              const ck = cellKey(r, c);
-              const num = data.numbers[r][c];
-              const isActive = activeCells.has(ck);
-              const isCursor = activeCell?.[0] === r && activeCell?.[1] === c;
-              return (
-                <div key={`${r}-${c}`} role="gridcell" className={`relative aspect-square ${isActive ? "bg-amber-100" : "bg-white"} ${isCursor ? "outline-2 outline-emerald-600" : ""}`}>
-                  {num != null && (
-                    <span className="pointer-events-none absolute left-[2px] top-0 text-[9px] font-bold leading-none text-zinc-600" aria-hidden>
-                      {num}
-                    </span>
-                  )}
-                  <input
-                    ref={(el) => {
-                      if (el) inputRefs.current.set(ck, el);
-                      else inputRefs.current.delete(ck);
-                    }}
-                    value={cells[ck] ?? ""}
-                    onChange={(e) => typeAt(r, c, e.target.value)}
-                    onKeyDown={(e) => handleKey(r, c, e)}
-                    onFocus={() => {
-                      setActiveCell([r, c]);
-                      const opts = entriesByCell.get(ck) ?? [];
-                      if (opts.length > 0 && !opts.some((x) => key(x.number, x.dir) === activeKey)) {
-                        setActiveKey(key(opts[0].number, opts[0].dir));
-                      }
-                    }}
-                    onClick={() => selectCell(r, c)}
-                    maxLength={1}
-                    autoComplete="off"
-                    autoCapitalize="characters"
-                    aria-label={`Row ${r + 1} column ${c + 1}${num ? `, number ${num}` : ""}`}
-                    className="h-full w-full bg-transparent text-center text-base font-bold uppercase caret-emerald-700 focus:bg-amber-200 focus:outline-none sm:text-lg"
-                  />
-                </div>
-              );
-            }),
-          )}
-        </div>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", md: "auto 1fr" },
+          alignItems: "start",
+        }}
+      >
+        <Card>
+          <CardContent>
+            <Box
+              role="grid"
+              aria-label="Crossword grid"
+              sx={{
+                display: "grid",
+                gap: "2px",
+                bgcolor: "divider",
+                p: "2px",
+                borderRadius: 2,
+                width: { xs: "100%", md: 420 },
+                gridTemplateColumns: `repeat(${data.cols}, minmax(0,1fr))`,
+              }}
+            >
+              {Array.from({ length: data.rows }, (_, r) =>
+                Array.from({ length: data.cols }, (_, c) => {
+                  if (data.blocks[r][c]) {
+                    return <Box key={`${r}-${c}`} role="presentation" sx={{ aspectRatio: "1", bgcolor: "text.primary", opacity: 0.85 }} />;
+                  }
+                  const ck = cellKey(r, c);
+                  const num = data.numbers[r][c];
+                  const isActive = activeCells.has(ck);
+                  const isCursor = activeCell?.[0] === r && activeCell?.[1] === c;
+                  return (
+                    <Box
+                      key={`${r}-${c}`}
+                      role="gridcell"
+                      sx={{
+                        position: "relative",
+                        aspectRatio: "1",
+                        bgcolor: isCursor ? "secondary.light" : isActive ? "secondary.main" : "background.paper",
+                        outline: isCursor ? 2 : 0,
+                        outlineColor: "primary.main",
+                        "&:focus-within": { bgcolor: "secondary.light" },
+                      }}
+                    >
+                      {num != null && (
+                        <Typography
+                          aria-hidden
+                          sx={{
+                            position: "absolute",
+                            left: 2,
+                            top: 0,
+                            fontSize: 9,
+                            fontWeight: 800,
+                            lineHeight: 1.2,
+                            color: "text.secondary",
+                            pointerEvents: "none",
+                          }}
+                        >
+                          {num}
+                        </Typography>
+                      )}
+                      <input
+                        ref={(el) => {
+                          if (el) inputRefs.current.set(ck, el);
+                          else inputRefs.current.delete(ck);
+                        }}
+                          value={cells[ck] ?? ""}
+                          onChange={(e) => typeAt(r, c, e.target.value)}
+                          onKeyDown={(e) => handleKey(r, c, e)}
+                          onFocus={() => {
+                            setActiveCell([r, c]);
+                            const opts = entriesByCell.get(ck) ?? [];
+                            if (opts.length > 0 && !opts.some((x) => key(x.number, x.dir) === activeKey)) {
+                              setActiveKey(key(opts[0].number, opts[0].dir));
+                            }
+                          }}
+                          onClick={() => selectCell(r, c)}
+                          maxLength={1}
+                          autoComplete="off"
+                          autoCapitalize="characters"
+                          aria-label={`Row ${r + 1} column ${c + 1}${num ? `, number ${num}` : ""}`}
+                          style={{
+                            height: "100%",
+                            width: "100%",
+                            background: "transparent",
+                            border: "none",
+                            textAlign: "center",
+                            fontSize: 16,
+                            fontWeight: 800,
+                            textTransform: "uppercase",
+                            color: "inherit",
+                          }}
+                        />
+                    </Box>
+                  );
+                }),
+              )}
+            </Box>
+          </CardContent>
+        </Card>
 
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
+        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "1fr" }, alignItems: "start" }}>
           {(
             [
               ["Across", across],
               ["Down", down],
             ] as [string, Entry[]][]
           ).map(([title, list]) => (
-            <section key={title} aria-label={`${title} clues`}>
-              <h2 className="text-sm font-extrabold uppercase tracking-wide text-zinc-500">{title}</h2>
-              <ol className="mt-2 space-y-1">
-                {list.map((e) => {
-                  const k = key(e.number, e.dir);
-                  const filled = cellsForEntry(e).every(([r, c]) => cells[cellKey(r, c)]);
-                  return (
-                    <li key={k}>
-                      <button
+            <Card key={title}>
+              <CardContent sx={{ pb: 1 }}>
+                <Typography variant="overline" color="text.secondary">
+                  {title}
+                </Typography>
+                <List dense disablePadding aria-label={`${title} clues`}>
+                  {list.map((e) => {
+                    const k = key(e.number, e.dir);
+                    const filled = cellsForEntry(e).every(([r, c]) => cells[cellKey(r, c)]);
+                    return (
+                      <ListItemButton
+                        key={k}
+                        selected={k === activeKey}
                         onClick={() => selectEntry(e)}
-                        aria-current={k === activeKey}
-                        className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${k === activeKey ? "border-emerald-600 bg-emerald-50 font-semibold" : "bg-white hover:bg-amber-50"} ${filled ? "border-dashed" : ""}`}
+                        sx={{ borderRadius: 2 }}
                       >
-                        <span className="font-bold">{e.number}.</span> {e.clue} <span className="text-zinc-500">({e.len})</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-            </section>
+                        <ListItemText
+                          primary={`${e.number}. ${e.clue} (${e.len})`}
+                          primaryTypographyProps={{ variant: "body2" }}
+                        />
+                        {filled && <Chip label="filled" size="small" variant="outlined" />}
+                      </ListItemButton>
+                    );
+                  })}
+                </List>
+              </CardContent>
+            </Card>
           ))}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <button onClick={submit} className="rounded-full bg-emerald-600 px-5 py-2 font-semibold text-white">
+      <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+        <Button variant="contained" onClick={submit}>
           Check crossword
-        </button>
-        <button onClick={clearEntry} className="text-sm underline">
-          Clear this clue
-        </button>
-        <button onClick={() => setCells({})} className="text-sm underline">
-          Clear all
-        </button>
-        <span className="text-sm" aria-live="polite">{res}</span>
-      </div>
-    </div>
+        </Button>
+        <Button onClick={clearEntry}>Clear this clue</Button>
+        <Button onClick={() => setCells({})}>Clear all</Button>
+      </Stack>
+      {res && (
+        <Alert severity={res.startsWith("🎉") ? "success" : "info"} aria-live="polite">
+          {res}
+        </Alert>
+      )}
+    </Stack>
   );
 }

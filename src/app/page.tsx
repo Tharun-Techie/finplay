@@ -1,63 +1,163 @@
+import NextLink from "next/link";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import CardActions from "@mui/material/CardActions";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import Avatar from "@mui/material/Avatar";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import ScheduleIcon from "@mui/icons-material/Schedule";
+import StarIcon from "@mui/icons-material/Star";
+import LockClockIcon from "@mui/icons-material/LockClock";
 import { GAMES, FUTURE_GAMES } from "@/lib/games/registry";
 import { getDailyQuests } from "@/data/puzzles";
 import { todayYMD } from "@/lib/streak";
+import StatsBar from "@/components/StatsBar";
 
-export default async function Home() {
+const GAME_ICON: Record<string, string> = {
+  GUESS_STOCK: "📈",
+  WORD_SEARCH: "🔎",
+  CROSSWORD: "🧩",
+};
+
+const DIFFICULTY_COLOR = {
+  EASY: "success",
+  MEDIUM: "warning",
+  HARD: "error",
+} as const;
+
+export default function Home() {
   const date = todayYMD();
   const quests = getDailyQuests(date);
 
   return (
-    <div className="flex flex-col gap-10">
-      <section className="rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 p-8 text-white">
-        <p className="text-sm font-semibold uppercase tracking-widest opacity-80">FinQuest</p>
-        <h1 className="mt-2 text-4xl font-extrabold">Play your way through finance.</h1>
-        <p className="mt-2 max-w-xl text-white/90">Play · Discover · Think · Learn. Daily puzzles on Indian markets — Wordle-style fun, zero brokerage.</p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <a href="/guess-the-stock" className="rounded-full bg-white px-5 py-2.5 font-semibold text-emerald-700">Play Today&apos;s Quest</a>
-          <a href="#games" className="rounded-full border border-white/60 px-5 py-2.5 font-semibold">Explore Games</a>
-        </div>
-      </section>
+    <Stack spacing={3}>
+      <StatsBar />
 
-      <section aria-labelledby="daily">
-        <h2 id="daily" className="text-xl font-bold">Today&apos;s challenges — {date}</h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+      <Card
+        sx={{
+          background: "linear-gradient(135deg, #0F5132 0%, #1B7A43 55%, #0E7490 100%)",
+          color: "white",
+        }}
+      >
+        <CardContent sx={{ p: 4 }}>
+          <Typography variant="overline" sx={{ opacity: 0.8, letterSpacing: "0.2em" }}>
+            FinQuest
+          </Typography>
+          <Typography variant="h4" component="h1" sx={{ mt: 1 }}>
+            Play your way through finance.
+          </Typography>
+          <Typography variant="body1" sx={{ mt: 1, opacity: 0.9, maxWidth: 560 }}>
+            Play · Discover · Think · Learn. Daily puzzles on Indian markets —
+            Wordle-style fun, zero brokerage.
+          </Typography>
+        </CardContent>
+        <CardActions sx={{ px: 4, pb: 4, gap: 1, flexWrap: "wrap" }}>
+          <Button
+            variant="contained"
+            color="secondary"
+            size="large"
+            startIcon={<PlayArrowIcon />}
+            component={NextLink}
+            href="/guess-the-stock"
+          >
+            Play Today&apos;s Quest
+          </Button>
+          <Button variant="outlined" size="large" href="#games" sx={{ color: "white", borderColor: "rgba(255,255,255,0.6)" }}>
+            Explore Games
+          </Button>
+        </CardActions>
+      </Card>
+
+      <Box>
+        <Typography variant="h5" component="h2">
+          Today&apos;s challenges
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {date} · same puzzle for everyone
+        </Typography>
+        <Box
+          sx={{
+            mt: 2,
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+          }}
+        >
           {quests.map((q) => {
             const meta = Object.values(GAMES).find((g) => g.type === q.gameType)!;
             return (
-              <a key={q.puzzleId} href={`/${meta.slug}`} className="rounded-xl border bg-white p-5 shadow-sm transition hover:shadow-md">
-                <div className="text-2xl" aria-hidden>{meta.icon}</div>
-                <h3 className="mt-2 font-bold">{q.title}</h3>
-                <dl className="mt-2 text-sm text-zinc-600">
-                  <div className="flex justify-between"><dt>Difficulty</dt><dd>{q.difficulty}</dd></div>
-                  <div className="flex justify-between"><dt>Time</dt><dd>~{q.estMinutes} min</dd></div>
-                  <div className="flex justify-between"><dt>XP</dt><dd>+{q.xpReward}</dd></div>
-                </dl>
-                <span className="mt-3 inline-block rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">Play →</span>
-              </a>
+              <Card key={q.puzzleId} sx={{ display: "flex", flexDirection: "column" }}>
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Avatar sx={{ bgcolor: "primary.main", width: 44, height: 44 }}>
+                      {GAME_ICON[q.gameType]}
+                    </Avatar>
+                    <Typography variant="h6" component="h3">
+                      {q.title}
+                    </Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={1} sx={{ mt: 2 }} flexWrap="wrap" useFlexGap>
+                    <Chip label={q.difficulty} color={DIFFICULTY_COLOR[q.difficulty]} size="small" />
+                    <Chip icon={<ScheduleIcon />} label={`~${q.estMinutes} min`} size="small" variant="outlined" />
+                    <Chip icon={<StarIcon />} label={`+${q.xpReward} XP`} size="small" variant="outlined" />
+                  </Stack>
+                </CardContent>
+                <CardActions>
+                  <Button size="small" endIcon={<PlayArrowIcon />} component={NextLink} href={`/${meta.slug}`}>
+                    Play
+                  </Button>
+                </CardActions>
+              </Card>
             );
           })}
-        </div>
-      </section>
+        </Box>
+      </Box>
 
-      <section id="games" aria-labelledby="cats">
-        <h2 id="cats" className="text-xl font-bold">Game categories</h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+      <Box id="games">
+        <Typography variant="h5" component="h2">
+          Game categories
+        </Typography>
+        <Box
+          sx={{
+            mt: 2,
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+          }}
+        >
           {Object.values(GAMES).map((g) => (
-            <a key={g.slug} href={`/${g.slug}`} className="rounded-xl border bg-white p-5">
-              <div className="text-2xl" aria-hidden>{g.icon}</div>
-              <h3 className="mt-2 font-bold">{g.title}</h3>
-              <p className="text-sm text-zinc-600">{g.description}</p>
-            </a>
+            <Card key={g.slug} component={NextLink} href={`/${g.slug}`} sx={{ textDecoration: "none" }}>
+              <CardContent>
+                <Avatar sx={{ bgcolor: "tertiary.main" }}>{g.icon}</Avatar>
+                <Typography variant="h6" component="h3" sx={{ mt: 1.5 }}>
+                  {g.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {g.description}
+                </Typography>
+              </CardContent>
+            </Card>
           ))}
           {FUTURE_GAMES.map((g) => (
-            <div key={g.slug} className="rounded-xl border border-dashed bg-zinc-100 p-5 opacity-70" aria-disabled>
-              <div className="text-2xl" aria-hidden>{g.icon}</div>
-              <h3 className="mt-2 font-bold">{g.title} · Coming Soon</h3>
-              <p className="text-sm text-zinc-600">{g.description}</p>
-            </div>
+            <Card key={g.slug} sx={{ bgcolor: "action.hover" }} aria-disabled>
+              <CardContent>
+                <Avatar sx={{ bgcolor: "action.disabled" }}>{g.icon}</Avatar>
+                <Typography variant="h6" component="h3" sx={{ mt: 1.5 }}>
+                  {g.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {g.description}
+                </Typography>
+                <Chip icon={<LockClockIcon />} label="Coming Soon" size="small" sx={{ mt: 1.5 }} />
+              </CardContent>
+            </Card>
           ))}
-        </div>
-      </section>
-    </div>
+        </Box>
+      </Box>
+    </Stack>
   );
 }

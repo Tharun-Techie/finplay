@@ -1,5 +1,15 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import Typography from "@mui/material/Typography";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import Skeleton from "@mui/material/Skeleton";
+import CheckIcon from "@mui/icons-material/Check";
 import { termFor } from "@/data/glossary";
 
 export default function WordSearchPage() {
@@ -9,77 +19,147 @@ export default function WordSearchPage() {
   const [words, setWords] = useState<string[]>([]);
   const [found, setFound] = useState<string[]>([]);
   const [sel, setSel] = useState<[number, number][]>([]);
-  const [result, setResult] = useState<string>("");
+  const [result, setResult] = useState("");
   const [activeTerm, setActiveTerm] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/games/word-search/${puzzleId}`).then((r) => r.json()).then((d) => {
-      setGrid(d.grid ?? []); setWords(d.words ?? []);
-    });
+    fetch(`/api/games/word-search/${puzzleId}`, { cache: "no-store" })
+      .then((r) => {
+        if (!r.ok) throw new Error(`Server responded ${r.status}`);
+        return r.json();
+      })
+      .then((d) => {
+        setGrid(d.grid ?? []);
+        setWords(d.words ?? []);
+      })
+      .catch((e: unknown) => setLoadError(e instanceof Error ? e.message : "Failed to load puzzle"));
   }, [puzzleId]);
 
-  const selWord = useMemo(() => sel.map(([r, c]) => grid[r]?.[c] ?? "").join(""), [sel, grid]);
+  const selWord = useMemo(
+    () => sel.map(([r, c]) => grid[r]?.[c] ?? "").join(""),
+    [sel, grid],
+  );
 
   function toggle(r: number, c: number) {
-    setSel((s) => (s.some(([a, b]) => a === r && b === c) ? s.filter(([a, b]) => !(a === r && b === c)) : [...s, [r, c]]));
+    setSel((s) =>
+      s.some(([a, b]) => a === r && b === c)
+        ? s.filter(([a, b]) => !(a === r && b === c))
+        : [...s, [r, c]],
+    );
   }
 
   async function submitSelection() {
-    const w = selWord;
-    const rev = [...w].reverse().join("");
-    const match = words.find((x) => x === w || x === rev);
+    const rev = [...selWord].reverse().join("");
+    const match = words.find((x) => x === selWord || x === rev);
     if (match && !found.includes(match)) {
       const next = [...found, match];
       setFound(next);
       setActiveTerm(match);
       setSel([]);
       const res = await fetch(`/api/games/word-search/${puzzleId}/complete`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ found: next }),
       }).then((r) => r.json());
-      setResult(res.solved ? `🎉 Solved! +${res.xp} XP` : `${correct(next)}/${words.length} found`);
+      setResult(res.solved ? `🎉 Solved! +${res.xp} XP` : `${next.length}/${words.length} found`);
     } else {
       setSel([]);
     }
   }
-  const correct = (f: string[]) => f.length;
 
   const term = activeTerm ? termFor(activeTerm) : null;
+  const isSel = (r: number, c: number) => sel.some(([a, b]) => a === r && b === c);
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="text-2xl font-extrabold">🔎 Finance Word Search</h1>
-      <p className="text-sm text-zinc-600">Drag/tap letters (touch + mouse + keyboard accessible). Select a found word to see what it means.</p>
-      <div className="mt-2 flex flex-wrap gap-2 text-sm" aria-live="polite">
+    <Stack spacing={2} sx={{ maxWidth: 720, mx: "auto" }}>
+      <div>
+        <Typography variant="h4" component="h1">
+          🔎 Finance Word Search
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Tap letters to select them, then check the word. Tap a found word to learn what it
+          means. Touch, mouse &amp; keyboard friendly.
+        </Typography>
+      </div>
+
+      {loadError && <Alert severity="error">Couldn&apos;t load today&apos;s grid: {loadError}</Alert>}
+
+      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap aria-live="polite">
         {words.map((w) => (
-          <button key={w} onClick={() => setActiveTerm(w)}
-            className={`rounded-full px-3 py-1 font-mono ${found.includes(w) ? "bg-emerald-600 text-white" : "bg-white border"}`}>
-            {found.includes(w) ? `✓ ${w}` : w}
-          </button>
+          <Chip
+            key={w}
+            label={w}
+            clickable
+            onClick={() => setActiveTerm(w)}
+            onDelete={found.includes(w) ? () => setActiveTerm(w) : undefined}
+            deleteIcon={found.includes(w) ? <CheckIcon /> : undefined}
+            color={found.includes(w) ? "success" : "default"}
+            variant={found.includes(w) ? "filled" : "outlined"}
+            sx={{ fontFamily: "monospace", fontWeight: 700 }}
+          />
         ))}
-      </div>
-      <div className="mt-4 grid gap-0.5 select-none" style={{ gridTemplateColumns: `repeat(${grid[0]?.length ?? 12}, minmax(0,1fr))` }} role="grid" aria-label="Word search grid">
-        {grid.map((row, r) => row.map((ch, c) => {
-          const on = sel.some(([a, b]) => a === r && b === c);
-          return (
-            <button key={`${r}-${c}`} role="gridcell" onClick={() => toggle(r, c)}
-              className={`aspect-square rounded text-sm font-bold ${on ? "bg-amber-300" : "bg-white border hover:bg-amber-100"}`}>
-              {ch}
-            </button>
-          );
-        }))}
-      </div>
-      <div className="mt-3 flex items-center gap-3">
-        <button onClick={submitSelection} className="rounded-full bg-emerald-600 px-5 py-2 font-semibold text-white">Check “{selWord || "…"}”</button>
-        <button onClick={() => setSel([])} className="text-sm underline">Clear</button>
-        <span className="text-sm" aria-live="polite">{result}</span>
-      </div>
-      {term && (
-        <div className="mt-4 rounded-xl border bg-white p-4">
-          <h2 className="font-bold">{term.term} — {term.short}</h2>
-          <p className="text-sm">{term.long}</p>
-        </div>
+      </Stack>
+
+      {grid.length === 0 && !loadError ? (
+        <Skeleton variant="rounded" height={320} sx={{ borderRadius: 5 }} />
+      ) : (
+        <Card>
+          <CardContent>
+            <Box
+              role="grid"
+              aria-label="Word search grid"
+              sx={{
+                display: "grid",
+                gap: 0.5,
+                userSelect: "none",
+                gridTemplateColumns: `repeat(${grid[0]?.length ?? 12}, minmax(0,1fr))`,
+              }}
+            >
+              {grid.map((row, r) =>
+                row.map((ch, c) => (
+                  <Button
+                    key={`${r}-${c}`}
+                    role="gridcell"
+                    aria-pressed={isSel(r, c)}
+                    aria-label={`Row ${r + 1} column ${c + 1}, letter ${ch}`}
+                    onClick={() => toggle(r, c)}
+                    variant={isSel(r, c) ? "contained" : "outlined"}
+                    color={isSel(r, c) ? "secondary" : "primary"}
+                    sx={{ minWidth: 0, aspectRatio: "1", p: 0, fontWeight: 800 }}
+                  >
+                    {ch}
+                  </Button>
+                )),
+              )}
+            </Box>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 2 }}>
+              <Button variant="contained" onClick={submitSelection} disabled={!selWord}>
+                Check “{selWord || "…"}”
+              </Button>
+              <Button onClick={() => setSel([])}>Clear</Button>
+            </Stack>
+            {result && (
+              <Alert severity={result.startsWith("🎉") ? "success" : "info"} sx={{ mt: 2 }} aria-live="polite">
+                {result}
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
       )}
-    </div>
+
+      {term && (
+        <Card sx={{ bgcolor: "tertiary.main", color: "tertiary.contrastText" }}>
+          <CardContent>
+            <Typography variant="h6">
+              {term.term} — {term.short}
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 0.5 }}>
+              {term.long}
+            </Typography>
+          </CardContent>
+        </Card>
+      )}
+    </Stack>
   );
 }
