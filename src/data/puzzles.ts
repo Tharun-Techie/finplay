@@ -75,3 +75,63 @@ export function getCrosswordDaily(dateYMD: string) {
   const built = generateCrossword(words, 11, 11, `daily-${dateYMD}`);
   return { puzzleId: dailyId(dateYMD, "crossword"), ...built };
 }
+
+export interface PublicCrosswordEntry {
+  number: number;
+  dir: "ACROSS" | "DOWN";
+  clue: string;
+  len: number;
+  row: number;
+  col: number;
+}
+
+export interface PublicCrossword {
+  puzzleId: string;
+  rows: number;
+  cols: number;
+  blocks: boolean[][];
+  numbers: (number | null)[][];
+  entries: PublicCrosswordEntry[];
+}
+
+// Public shape — grid structure + clue placements, NEVER solution letters (§34).
+// Shared by the API route and server-rendered pages so the browser gets data
+// on first paint with no extra fetch round-trip.
+export function getPublicCrossword(dateYMD: string): PublicCrossword {
+  const p = getCrosswordDaily(dateYMD);
+  const numbers: (number | null)[][] = p.grid.map((row) => row.map(() => null));
+  for (const w of p.placed) {
+    if (numbers[w.row]?.[w.col] == null) numbers[w.row][w.col] = w.number;
+  }
+  return {
+    puzzleId: p.puzzleId,
+    rows: p.rows,
+    cols: p.cols,
+    blocks: p.grid.map((row) => row.map((c) => c === null)),
+    numbers,
+    entries: p.placed.map((w) => ({
+      number: w.number,
+      dir: w.dir,
+      clue: w.clue,
+      len: w.word.length,
+      row: w.row,
+      col: w.col,
+    })),
+  };
+}
+
+export interface PublicWordSearch {
+  puzzleId: string;
+  rows: number;
+  cols: number;
+  grid: string[][];
+  words: string[];
+  theme: string;
+}
+
+// Public shape — grid + word list, NOT coordinates (validated server-side).
+export function getPublicWordSearch(dateYMD: string): PublicWordSearch {
+  const { _placed, ...pub } = getWordSearchDaily(dateYMD);
+  void _placed;
+  return pub;
+}
